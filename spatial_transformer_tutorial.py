@@ -2,6 +2,7 @@
 # Spatial Transformer Networks Tutorial
 # =====================================
 # **Author**: `Ghassen HAMROUNI <https://github.com/GHamrouni>`_
+# **Modified by** `Sandro Braun <https://github.com/therealsupermario>`_
 #
 # .. figure:: /_static/img/stn/FSeq.png
 #
@@ -110,6 +111,8 @@ test_loader = torch.utils.data.DataLoader(
 #
 #
 #
+
+"""This snippet is from https://github.com/wuneng/WarpAffine2GridSample/pull/4"""
 
 
 def get_N(W, H):
@@ -420,7 +423,7 @@ for epoch in range(1, 20 + 1):
     test()
     if epoch % 1 == 0:
         visualize_stn()
-        plt.savefig(f"{epoch:06d}.png")
+        plt.savefig(f"stn_tutorial/{epoch:06d}.png")
         plt.close()
 
 # Visualize the STN transformation on some input batch
@@ -429,3 +432,4 @@ visualize_stn()
 plt.ioff()
 plt.show()
 
+torch.save(model.state_dict(), "classifier_pretrained.pth")
