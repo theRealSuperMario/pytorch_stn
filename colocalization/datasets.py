@@ -50,7 +50,7 @@ class MNIST_TRANSLATED(datasets.MNIST):
         end_y = start_y + 28
         img, label = super(MNIST_TRANSLATED, self).__getitem__(idx)
         canvas[:, start_x:end_x, start_y:end_y] = img
-        return canvas.astype(np.float32) / 255.0
+        return canvas.astype(np.float32)
 
 
 class StochasticPairs(torch.utils.data.Dataset):

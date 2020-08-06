@@ -24,9 +24,8 @@ class LocalizationNet(nn.Module):
         self.fc3 = nn.Linear(64, 8)
         self.fc4 = nn.Linear(8, 3)
 
-        self.fc4.weight.data.zero_()
         self.fc4.bias.data.copy_(
-            torch.tensor([1.0, 0.0, 0.0], dtype=torch.float)
+            torch.tensor([1.2, 0.05, 0.05], dtype=torch.float)
         )  # scale, tx, ty
 
         # Spatial transformer localization-network

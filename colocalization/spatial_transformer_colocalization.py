@@ -55,8 +55,10 @@ dset_train = MNIST_TRANSLATED(
     transform=transforms.Compose([transforms.ToTensor()]),
 )
 dset_train_pairs = StochasticPairs(dset_train, random_state=42)
-dset_test = MNIST_TRANSLATED(root=".", train=True,)
-dset_test_pairs = StochasticPairs(dset_test, random_state=42,)
+dset_test = MNIST_TRANSLATED(
+    root=".", train=True, transform=transforms.Compose([transforms.ToTensor()])
+)
+dset_test_pairs = StochasticPairs(dset_test, random_state=42)
 
 
 # Training dataset
@@ -155,6 +157,7 @@ def visualize_stn(epoch):
         for theta_n, img_n in zip(thetas_n, I_n):
             img_n = img_n.detach().cpu()
             img = img_n.numpy().transpose((1, 2, 0))
+            img = np.concatenate([img] * 3, -1)
             T = cvt_ThetaToM(theta_n, W, H, return_inv=False)
             T = np.concatenate([T, np.zeros((1, 3))], axis=0).astype(np.float32)
             T[-1, -1] = 1
@@ -165,13 +168,10 @@ def visualize_stn(epoch):
             bbox = bbox.reshape((-1, 2))
 
             polygons = [np.int32(bbox)]
-            import pudb
 
-            pudb.set_trace()
-
-            img_with_box = img.copy()
+            img_with_box = img.copy() * 255.0
             img_with_box = (
-                cv2.polylines(img_with_box, polygons, True, (0, 255, 255), 1) / 255.0
+                cv2.polylines(img_with_box, polygons, True, (0, 255, 255), 3) / 255.0
             )
             image_grid.append(img_with_box)
         image_grid = np.stack(image_grid, axis=0)
