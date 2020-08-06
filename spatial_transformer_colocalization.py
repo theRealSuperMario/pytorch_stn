@@ -36,6 +36,7 @@ from datasets import MNIST_TRANSLATED, StochasticPairs
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import numpy as np
+from utils import *
 import cv2
 
 
@@ -53,38 +54,6 @@ Triplet encoder:
 CNN as trained for digit classifcation
 * concatenate two hidden layers and classification layer without softmax
 """
-
-
-# class EncoderNet(nn.Module):
-#     def __init__(self):
-#         """e() for triplet loss for reidentification."""
-#         super(EncoderNet, self).__init__()
-#         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-#         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-#         self.conv2_drop = nn.Dropout2d()
-#         self.fc1 = nn.Linear(320, 50)
-#         self.fc2 = nn.Linear(50, 10)
-
-#     def forward(self, x):
-#         # transform the input
-
-#         # Perform the usual forward pass
-#         x = F.relu(F.max_pool2d(self.conv1(x), 2))
-#         x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-#         e1 = x.view(-1, 320)  # embedding subspace 1
-
-#         e2 = self.fc1(e1)  # embedding subspace 2
-
-#         x = F.relu(e2)
-#         x = F.dropout(x, training=self.training)
-
-#         e3 = self.fc2(x)  # embedding subspace 3
-
-#         e1 = e1 / torch.norm(e1, dim=1, keepdim=True)
-#         e2 = e2 / torch.norm(e2, dim=1, keepdim=True)
-#         e3 = e3 / torch.norm(e3, dim=1, keepdim=True)
-#         embedding = torch.cat([e1, e2, e3], dim=1)  # [N, whatever]
-#         return embedding
 
 
 class EncoderNet(nn.Module):
@@ -212,106 +181,8 @@ test_loader = torch.utils.data.DataLoader(
 # .. Note::
 #    We need the latest version of PyTorch that contains
 #    affine_grid and grid_sample modules.
-#
-#
-#
 
 """This snippet is from https://github.com/wuneng/WarpAffine2GridSample/pull/4"""
-
-
-def get_N(W, H):
-    """N that maps from unnormalized to normalized coordinates"""
-    N = np.zeros((3, 3), dtype=np.float64)
-    N[0, 0] = 2.0 / W
-    N[0, 1] = 0
-    N[1, 1] = 2.0 / H
-    N[1, 0] = 0
-    N[0, -1] = -1.0
-    N[1, -1] = -1.0
-    N[-1, -1] = 1.0
-    return N
-
-
-def get_N_inv(W, H):
-    """N that maps from normalized to unnormalized coordinates"""
-    # TODO: do this analytically maybe?
-    N = get_N(W, H)
-    return np.linalg.inv(N)
-
-
-def cvt_MToTheta(M, w, h):
-    """convert affine warp matrix `M` compatible with `opencv.warpAffine` to `theta` matrix
-    compatible with `torch.F.affine_grid`
-
-    Parameters
-    ----------
-    M : np.ndarray
-        affine warp matrix shaped [2, 3]
-    w : int
-        width of image
-    h : int
-        height of image
-
-    Returns
-    -------
-    np.ndarray
-        theta tensor for `torch.F.affine_grid`, shaped [2, 3]
-    """
-    M_aug = np.concatenate([M, np.zeros((1, 3))], axis=0)
-    M_aug[-1, -1] = 1.0
-    N = get_N(w, h)
-    N_inv = get_N_inv(w, h)
-    theta = N @ M_aug @ N_inv
-    theta = np.linalg.inv(theta)
-    return theta[:2, :]
-
-
-def cvt_ThetaToM(theta, w, h, return_inv=False):
-    """convert theta matrix compatible with `torch.F.affine_grid` to affine warp matrix `M`
-    compatible with `opencv.warpAffine`.
-
-    Note:
-    M works with `opencv.warpAffine`.
-    To transform a set of bounding box corner points using `opencv.perspectiveTransform`, M^-1 is required
-
-    Parameters
-    ----------
-    theta : np.ndarray
-        theta tensor for `torch.F.affine_grid`, shaped [2, 3]
-    w : int
-        width of image
-    h : int
-        height of image
-    return_inv : False
-        return M^-1 instead of M.
-
-    Returns
-    -------
-    np.ndarray
-        affine warp matrix `M` shaped [2, 3]
-    """
-    theta_aug = np.concatenate([theta, np.zeros((1, 3))], axis=0)
-    theta_aug[-1, -1] = 1.0
-    N = get_N(w, h)
-    N_inv = get_N_inv(w, h)
-    M = np.linalg.inv(theta_aug)
-    M = N_inv @ M @ N
-    if return_inv:
-        M_inv = np.linalg.inv(M)
-        return M_inv[:2, :]
-    return M[:2, :]
-
-
-"""
-Localizsation Network:
-Conv9x9 filters with 8 kernels, 4 pixel strides
-2x2 max pooling with stride 2
-FC1: 8
-FC2: 8
-FC3: 3
-
-theta parameterised for translation and scale
-"""
 
 
 class LocalizationNet(nn.Module):
@@ -322,11 +193,12 @@ class LocalizationNet(nn.Module):
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.fc1 = nn.Linear(1600, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 3)
+        self.fc2 = nn.Linear(512, 64)
+        self.fc3 = nn.Linear(64, 8)
+        self.fc4 = nn.Linear(8, 3)
 
-        self.fc3.weight.data.zero_()
-        self.fc3.bias.data.copy_(
+        self.fc4.weight.data.zero_()
+        self.fc4.bias.data.copy_(
             torch.tensor([1.0, 0.0, 0.0], dtype=torch.float)
         )  # scale, tx, ty
 
@@ -335,7 +207,13 @@ class LocalizationNet(nn.Module):
             self.conv1, self.pool1, nn.ReLU(True), self.conv2, self.pool2,
         )
         self.localization_fc = nn.Sequential(
-            self.fc1, nn.ReLU(True), self.fc2, nn.ReLU(True), self.fc3,
+            self.fc1,
+            nn.ReLU(True),
+            self.fc2,
+            nn.ReLU(True),
+            self.fc3,
+            nn.ReLU(True),
+            self.fc4,
         )
 
     # Spatial transformer network forward function
@@ -367,7 +245,7 @@ class LocalizationNet(nn.Module):
 
 model_encoder = EncoderNet().to(device)
 model_encoder.load_state_dict(torch.load("classifier_pretrained.pth"))
-model_encoder.eval()
+model_encoder.train()
 model_stn = LocalizationNet().to(device)
 
 
@@ -381,11 +259,11 @@ model_stn = LocalizationNet().to(device)
 random_crop = torchvision.transforms.RandomCrop([28, 28])
 
 params = list(model_encoder.parameters()) + list(model_stn.parameters())
-optimizer = optim.Adam(params, lr=0.0001)
+optimizer = optim.SGD(params, lr=0.01)
 
 
 def train(epoch):
-    model_encoder.eval()
+    model_encoder.train()
     model_stn.train()
     for batch_idx, (I_n, I_m) in enumerate(train_loader):
         I_n = I_n.to(device)
@@ -427,19 +305,6 @@ def train(epoch):
                     loss.item(),
                 )
             )
-
-
-# def test():
-#     with torch.no_grad():
-#         model_encoder.eval()
-#         test_loss = 0
-#         correct = 0
-#         for (I_n, I_m) in test_loader:
-#             I_n = I_n.to(device)
-#             I_m = I_m.to(device)
-
-#             theta_n = model_stn.stn_theta(I_n)
-#             theta_m = model_stn.stn_theta(I_m)
 
 
 # Visualizing the STN results
@@ -486,7 +351,7 @@ def visualize_stn():
         for theta_n, img_n in zip(thetas_n, I_n):
             img_n = img_n.detach().cpu()
             img = convert_image_np(img_n)
-            T = cvt_ThetaToM(theta_n, W, H, return_inv=True)
+            T = cvt_ThetaToM(theta_n, W, H, return_inv=False)
             T = np.concatenate([T, np.zeros((1, 3))], axis=0).astype(np.float32)
             T[-1, -1] = 1
             points = np.array(
