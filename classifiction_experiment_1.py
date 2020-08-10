@@ -206,7 +206,7 @@ def visualize_stn(epoch):
         # Plot the results side-by-side
         with plt.rc_context(NB_RC_PARAMS):
             f, axarr = plt.subplots(1, 3, figsize=(18, 8))
-            f.suptitle(f"epoch {epoch:03d}", fontsize=26, y=1.02)
+            f.suptitle(f"epoch {epoch:03d}", fontsize=26)
             axarr[0].imshow(in_grid)
             axarr[0].set_title("Dataset Images")
             axarr[0].set_axis_off()
