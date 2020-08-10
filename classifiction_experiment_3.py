@@ -109,6 +109,7 @@ def test():
             correct += pred.eq(target.view_as(pred)).sum().item()
 
         test_loss /= len(test_loader.dataset)
+        accuracy = 100.0 * correct / len(test_loader.dataset)
         print(
             "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
                 test_loss,
@@ -118,7 +119,7 @@ def test():
             )
         )
         writer.add_scalar("test/loss", test_loss, epoch)
-        writer.add_scalar("test/accuracy", correct, epoch)
+        writer.add_scalar("test/accuracy", accuracy, epoch)
 
 
 def denormalize(inp):
